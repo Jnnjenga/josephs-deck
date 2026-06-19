@@ -1,0 +1,16 @@
+# User configuration — contains personal file paths
+shortcuts.json
+
+# Build output
+*.exe
+*.o
+*.a
+
+# Runtime DLLs (copied by build.bat)
+*.dll
+
+# Visual Studio build artifacts
+bin/
+obj/
+.vs/
+*.user
