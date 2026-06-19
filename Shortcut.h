@@ -13,6 +13,7 @@ enum class ShortcutType {
 struct Shortcut {
     std::wstring name;
     std::wstring target;
+    std::wstring iconPath;   // optional custom .ico override
     ShortcutType type = ShortcutType::Empty;
     HICON icon = nullptr;
 };

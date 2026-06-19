@@ -1,4 +1,5 @@
 #include <windows.h>
+#include <gdiplus.h>
 #include <shellapi.h>
 #include <shlobj.h>
 #include <fstream>
@@ -6,7 +7,26 @@
 #include <algorithm>
 #include "ShortcutManager.h"
 
+// Load any image (PNG, JPEG, ICO, BMP …) as a 32×32 HICON via GDI+
+static HICON LoadAnyImageAsIcon(const std::wstring& path) {
+    Gdiplus::Bitmap src(path.c_str());
+    if (src.GetLastStatus() != Gdiplus::Ok) return nullptr;
+    constexpr int SZ = 32;
+    Gdiplus::Bitmap bmp(SZ, SZ, PixelFormat32bppARGB);
+    Gdiplus::Graphics g(&bmp);
+    g.SetInterpolationMode(Gdiplus::InterpolationModeHighQualityBicubic);
+    g.DrawImage(&src, 0, 0, SZ, SZ);
+    HICON h = nullptr;
+    bmp.GetHICON(&h);
+    return h;
+}
+
 #pragma comment(lib, "advapi32.lib")
+
+// ── Path helpers ─────────────────────────────────────────────────────────────
+static void NormalizePath(std::wstring& p) {
+    for (auto& c : p) if (c == L'\\') c = L'/';
+}
 
 // ── Minimal JSON helpers ──────────────────────────────────────────────────────
 namespace {
@@ -128,12 +148,31 @@ ShortcutType ShortcutManager::ParseType(const std::string& s) {
     return ShortcutType::Empty;
 }
 
+// Extract just the exe path from "path.exe --args"
+static std::wstring ExeOnly(const std::wstring& t) {
+    for (size_t i = 0; i + 5 <= t.size(); i++) {
+        if (t[i] == L'.' &&
+            (t[i+1] == L'e' || t[i+1] == L'E') &&
+            (t[i+2] == L'x' || t[i+2] == L'X') &&
+            (t[i+3] == L'e' || t[i+3] == L'E') &&
+            t[i+4] == L' ')
+            return t.substr(0, i + 4);
+    }
+    return t;
+}
+
 HICON ShortcutManager::LoadIconForShortcut(const Shortcut& sc) {
+    // Custom image (PNG/JPEG/ICO/BMP) overrides auto-detection
+    if (!sc.iconPath.empty()) {
+        HICON h = LoadAnyImageAsIcon(sc.iconPath);
+        if (h) return h;
+    }
     if (sc.type == ShortcutType::Application || sc.type == ShortcutType::File) {
+        std::wstring exe = ExeOnly(sc.target);
         HICON hL = nullptr;
-        if (ExtractIconExW(sc.target.c_str(), 0, &hL, nullptr, 1) > 0 && hL) return hL;
+        if (ExtractIconExW(exe.c_str(), 0, &hL, nullptr, 1) > 0 && hL) return hL;
         SHFILEINFOW sfi = {};
-        SHGetFileInfoW(sc.target.c_str(), 0, &sfi, sizeof(sfi), SHGFI_ICON | SHGFI_LARGEICON);
+        SHGetFileInfoW(exe.c_str(), 0, &sfi, sizeof(sfi), SHGFI_ICON | SHGFI_LARGEICON);
         return sfi.hIcon;
     }
     if (sc.type == ShortcutType::Folder) {
@@ -173,6 +212,7 @@ ShortcutManager::Profile ShortcutManager::ParseProfile(const std::string& obj) {
             std::string nm  = ExtractValue(scObj, "name");
             std::string tgt = ExtractValue(scObj, "target");
             std::string tp  = ExtractValue(scObj, "type");
+            std::string ico = ExtractValue(scObj, "icon");
             ShortcutType t  = ParseType(tp);
             if (t == ShortcutType::Empty) {
                 Shortcut e; e.type = ShortcutType::Empty;
@@ -180,8 +220,11 @@ ShortcutManager::Profile ShortcutManager::ParseProfile(const std::string& obj) {
                 continue;
             }
             Shortcut sc;
-            sc.name   = ToWide(nm);
-            sc.target = ToWide(tgt);
+            sc.name     = ToWide(nm);
+            sc.target   = ToWide(tgt);
+            sc.iconPath = ToWide(ico);
+            NormalizePath(sc.target);
+            NormalizePath(sc.iconPath);
             sc.type   = t;
             sc.icon   = LoadIconForShortcut(sc);
             p.shortcuts.push_back(sc);
@@ -215,13 +258,17 @@ bool ShortcutManager::Load(const std::wstring& path) {
             std::string nm  = ExtractValue(scObj, "name");
             std::string tgt = ExtractValue(scObj, "target");
             std::string tp  = ExtractValue(scObj, "type");
+            std::string ico = ExtractValue(scObj, "icon");
             ShortcutType t  = ParseType(tp);
             if (t == ShortcutType::Empty || (nm.empty() && tgt.empty())) {
                 Shortcut e; e.type = ShortcutType::Empty; main.shortcuts.push_back(e); continue;
             }
             Shortcut sc;
-            sc.name   = ToWide(nm);
-            sc.target = ToWide(tgt);
+            sc.name     = ToWide(nm);
+            sc.target   = ToWide(tgt);
+            sc.iconPath = ToWide(ico);
+            NormalizePath(sc.target);
+            NormalizePath(sc.iconPath);
             sc.type   = t;
             sc.icon   = LoadIconForShortcut(sc);
             main.shortcuts.push_back(sc);
@@ -287,7 +334,10 @@ bool ShortcutManager::Save() const {
             const auto& sc = p.shortcuts[si];
             file << "        {\"name\":\"" << ToNarrow(sc.name)
                  << "\",\"type\":\""       << typeStr(sc.type)
-                 << "\",\"target\":\""     << ToNarrow(sc.target) << "\"}";
+                 << "\",\"target\":\""     << ToNarrow(sc.target) << "\"";
+            if (!sc.iconPath.empty())
+                file << ",\"icon\":\""     << ToNarrow(sc.iconPath) << "\"";
+            file << "}";
         }
         file << "\n      ]\n    }";
     }
@@ -325,7 +375,9 @@ void ShortcutManager::SetShortcut(int index, const Shortcut& sc) {
     auto& slots = m_profiles[m_current].shortcuts;
     if (index < 0 || index >= (int)slots.size()) return;
     if (slots[index].icon) { DestroyIcon(slots[index].icon); slots[index].icon = nullptr; }
-    slots[index]      = sc;
+    slots[index] = sc;
+    NormalizePath(slots[index].target);
+    NormalizePath(slots[index].iconPath);
     slots[index].icon = LoadIconForShortcut(slots[index]);
 }
 

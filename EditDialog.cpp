@@ -10,12 +10,14 @@
 
 // Child control IDs
 enum {
-    ID_EDIT_NAME   = 101,
-    ID_COMBO_TYPE  = 102,
-    ID_EDIT_TARGET = 103,
-    ID_BTN_BROWSE  = 104,
-    ID_BTN_OK      = IDOK,
-    ID_BTN_CANCEL  = IDCANCEL,
+    ID_EDIT_NAME        = 101,
+    ID_COMBO_TYPE       = 102,
+    ID_EDIT_TARGET      = 103,
+    ID_BTN_BROWSE       = 104,
+    ID_EDIT_ICON        = 105,
+    ID_BTN_BROWSE_ICON  = 106,
+    ID_BTN_OK           = IDOK,
+    ID_BTN_CANCEL       = IDCANCEL,
 };
 
 static const wchar_t* TYPE_LABELS[] = {
@@ -49,6 +51,7 @@ struct DlgState {
     EditResult      result;
     bool            running;
     HWND            hBrowse;
+    HWND            hBrowseIcon;
     HWND            hTypeCombo;
 };
 
@@ -74,7 +77,6 @@ static LRESULT CALLBACK DlgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
             DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
             CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Segoe UI");
 
-        // Helper lambdas
         auto MkLabel = [&](const wchar_t* t, int x, int y, int w, int ht) {
             HWND ctrl = CreateWindowExW(0, L"STATIC", t, WS_CHILD | WS_VISIBLE | SS_RIGHT,
                 x, y, w, ht, hwnd, nullptr, GetModuleHandleW(nullptr), nullptr);
@@ -97,14 +99,14 @@ static LRESULT CALLBACK DlgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
             return ctrl;
         };
 
-        // Row layout
+        // Row layout — label column left-aligned right-justified, controls start at IX
         const int LX = 10, LW = 64, IX = 80, IH = 26;
-        const int EW = 300;  // full-width edit
+        const int EW = 300;
 
-        MkLabel(L"Name:",   LX, 18, LW, 22);
+        MkLabel(L"Name:",   LX, 18,  LW, 22);
         MkEdit(ID_EDIT_NAME, s->src->name.c_str(), IX, 16, EW, IH);
 
-        MkLabel(L"Type:",   LX, 58, LW, 22);
+        MkLabel(L"Type:",   LX, 58,  LW, 22);
         HWND combo = CreateWindowExW(0, L"COMBOBOX", nullptr,
             WS_CHILD | WS_VISIBLE | WS_TABSTOP | CBS_DROPDOWNLIST | WS_VSCROLL,
             IX, 56, 160, 130, hwnd, (HMENU)ID_COMBO_TYPE,
@@ -115,12 +117,16 @@ static LRESULT CALLBACK DlgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         SendMessageW(combo, CB_SETCURSEL, IndexFromType(s->src->type), 0);
         s->hTypeCombo = combo;
 
-        MkLabel(L"Target:", LX, 98, LW, 22);
+        MkLabel(L"Target:", LX, 98,  LW, 22);
         MkEdit(ID_EDIT_TARGET, s->src->target.c_str(), IX, 96, EW - 96, IH);
         s->hBrowse = MkButton(ID_BTN_BROWSE, L"Browse...", IX + EW - 92, 96, 92, IH);
 
-        MkButton(ID_BTN_OK,     L"OK",     IX + EW - 172, 143, 80, 30);
-        MkButton(ID_BTN_CANCEL, L"Cancel", IX + EW -  86, 143, 80, 30);
+        MkLabel(L"Icon:",   LX, 134, LW, 22);
+        MkEdit(ID_EDIT_ICON, s->src->iconPath.c_str(), IX, 132, EW - 96, IH);
+        s->hBrowseIcon = MkButton(ID_BTN_BROWSE_ICON, L"Browse...", IX + EW - 92, 132, 92, IH);
+
+        MkButton(ID_BTN_OK,     L"OK",     IX + EW - 172, 178, 80, 30);
+        MkButton(ID_BTN_CANCEL, L"Cancel", IX + EW -  86, 178, 80, 30);
 
         UpdateBrowseState(s);
         return 0;
@@ -165,10 +171,25 @@ static LRESULT CALLBACK DlgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
             }
         }
 
+        if (id == ID_BTN_BROWSE_ICON) {
+            wchar_t buf[MAX_PATH] = {};
+            GetDlgItemTextW(hwnd, ID_EDIT_ICON, buf, MAX_PATH);
+            OPENFILENAMEW ofn = {};
+            ofn.lStructSize = sizeof(ofn);
+            ofn.hwndOwner   = hwnd;
+            ofn.lpstrFile   = buf;
+            ofn.nMaxFile    = MAX_PATH;
+            ofn.lpstrFilter = L"Image Files\0*.ico;*.png;*.jpg;*.jpeg;*.bmp\0All Files\0*.*\0";
+            ofn.Flags       = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
+            if (GetOpenFileNameW(&ofn))
+                SetDlgItemTextW(hwnd, ID_EDIT_ICON, buf);
+        }
+
         if (id == ID_BTN_OK) {
             wchar_t buf[2048] = {};
-            GetDlgItemTextW(hwnd, ID_EDIT_NAME,   buf, 2048); s->result.name   = buf;
-            GetDlgItemTextW(hwnd, ID_EDIT_TARGET, buf, 2048); s->result.target = buf;
+            GetDlgItemTextW(hwnd, ID_EDIT_NAME,   buf, 2048); s->result.name     = buf;
+            GetDlgItemTextW(hwnd, ID_EDIT_TARGET, buf, 2048); s->result.target   = buf;
+            GetDlgItemTextW(hwnd, ID_EDIT_ICON,   buf, 2048); s->result.iconPath = buf;
             int sel = (int)SendMessageW(s->hTypeCombo, CB_GETCURSEL, 0, 0);
             s->result.type    = TypeFromIndex(sel < 0 ? 0 : sel);
             s->result.ok      = true;
@@ -188,7 +209,6 @@ static LRESULT CALLBACK DlgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
 }
 
 EditResult ShowEditDialog(HWND parent, const Shortcut& current) {
-    // Register dialog window class once
     static bool registered = false;
     if (!registered) {
         WNDCLASSEXW wc = {};
@@ -206,15 +226,13 @@ EditResult ShowEditDialog(HWND parent, const Shortcut& current) {
     state.src     = &current;
     state.running = true;
 
-    // Size the window so the client area fits all controls
-    // Desired client: 390 wide, 190 tall
-    RECT rc = { 0, 0, 390, 190 };
+    // Client area: 390 × 220 (added icon row)
+    RECT rc = { 0, 0, 390, 220 };
     AdjustWindowRectEx(&rc, WS_POPUP | WS_CAPTION | WS_SYSMENU, FALSE,
                        WS_EX_DLGMODALFRAME | WS_EX_TOPMOST);
     int dw = rc.right  - rc.left;
     int dh = rc.bottom - rc.top;
 
-    // Centre over parent
     RECT pr; GetWindowRect(parent, &pr);
     int x = pr.left + ((pr.right - pr.left) - dw) / 2;
     int y = pr.top  + ((pr.bottom - pr.top) - dh) / 2;
@@ -229,12 +247,15 @@ EditResult ShowEditDialog(HWND parent, const Shortcut& current) {
     ShowWindow(dlg, SW_SHOW);
     UpdateWindow(dlg);
 
-    // Disable parent so dialog is modal
     EnableWindow(parent, FALSE);
 
     MSG msg;
     while (state.running) {
         if (!GetMessageW(&msg, nullptr, 0, 0)) break;
+        if (msg.message == WM_KEYDOWN && msg.wParam == 'A' && (GetKeyState(VK_CONTROL) & 0x8000)) {
+            SendMessageW(GetFocus(), EM_SETSEL, 0, -1);
+            continue;
+        }
         if (!IsDialogMessageW(dlg, &msg)) {
             TranslateMessage(&msg);
             DispatchMessageW(&msg);

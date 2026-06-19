@@ -4,10 +4,11 @@
 #include "Shortcut.h"
 
 struct EditResult {
-    bool         ok     = false;
+    bool         ok       = false;
     std::wstring name;
     std::wstring target;
-    ShortcutType type   = ShortcutType::Application;
+    std::wstring iconPath;
+    ShortcutType type     = ShortcutType::Application;
 };
 
 // Shows a modal edit dialog centred over `parent`.

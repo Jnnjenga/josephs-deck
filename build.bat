@@ -10,7 +10,7 @@ echo Building JosephsDeck...
     main.cpp LauncherWindow.cpp ShortcutManager.cpp ActionExecutor.cpp ^
     EditDialog.cpp SettingsDialog.cpp ^
     -ldwmapi -luxtheme -lshell32 -luser32 -lgdi32 -lcomctl32 ^
-    -ladvapi32 -lcomdlg32 -lole32 ^
+    -ladvapi32 -lcomdlg32 -lole32 -lgdiplus ^
     -o JosephsDeck.exe
 if %ERRORLEVEL% EQU 0 (
     echo BUILD SUCCESS

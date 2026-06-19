@@ -37,7 +37,15 @@ private:
     bool m_settingsHover = false;
     int  m_dotHover      = -1;
 
+    // Settings view
+    enum class View { Main, Settings };
+    View     m_view     = View::Main;
+    int      m_settSel  = -1;
+    HWND     m_hRenEdit = nullptr;
+    COLORREF m_clrBase  = 0x00181818; // dark accent-tinted tile colour
+
     static const UINT TIMER_READY = 1;
+    UINT m_toggleMsg = 0;
 
     ShortcutManager m_manager;
 
@@ -55,17 +63,17 @@ private:
     static const int DOT_SZ    = 9;    // dot diameter
     static const int DOT_GAP   = 8;    // gap between dots
 
-    // ── Colors (COLORREF = 0x00BBGGRR) ─────────────────────────────────────
-    static const COLORREF CLR_BG       = 0x00252525;
-    static const COLORREF CLR_TITLE    = 0x001C1C1C;
-    static const COLORREF CLR_BTN      = 0x00383838;
-    static const COLORREF CLR_HOVER    = 0x00505050;
-    static const COLORREF CLR_PRESS    = 0x00282828;
-    static const COLORREF CLR_BORDER   = 0x00606060;
-    static const COLORREF CLR_TEXT     = 0x00F0F0F0;
-    static const COLORREF CLR_SUBTEXT  = 0x00909090;
-    static const COLORREF CLR_EMPTY    = 0x002E2E2E;
-    static const COLORREF CLR_ACCENT   = 0x005588DD;
+    // ── Colors — BG/BTN/HOVER/PRESS/ACCENT computed from Windows accent at startup
+    COLORREF CLR_BG      = 0x00303030;
+    COLORREF CLR_TITLE   = 0x00303030;
+    COLORREF CLR_BTN     = 0x00303030;
+    COLORREF CLR_HOVER   = 0x00484848;
+    COLORREF CLR_PRESS   = 0x001E1E1E;
+    COLORREF CLR_EMPTY   = 0x00303030;
+    COLORREF CLR_ACCENT  = 0x00DD8855;
+    static const COLORREF CLR_BORDER  = 0x00505050;
+    static const COLORREF CLR_TEXT    = 0x00F0F0F0;
+    static const COLORREF CLR_SUBTEXT = 0x00909090;
 
     int WinWidth()  const { return COLS * BTN_W + (COLS + 1) * PADDING; }
     int WinHeight() const { return TITLE_H + ROWS * BTN_H + (ROWS + 1) * PADDING + DOTS_H; }
@@ -95,6 +103,16 @@ private:
     void OnDotClick(int idx);
     void CenterWindow();
     void LoadShortcuts();
+    void ComputePalette();
+
+    // Settings view
+    void EnterSettings();
+    void ExitSettings();
+    void DrawSettings(HDC hdc);
+    void OnSettViewLClick(int x, int y);
+    void OnSettViewRClick(int x, int y);
+    void BeginRename(int idx);
+    void CommitRename();
 
     LRESULT HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam);
 };
