@@ -1,0 +1,31 @@
+{
+  "currentProfile": 0,
+  "profiles": [
+    {
+      "name": "Main",
+      "shortcuts": [
+        { "name": "VS Code",     "type": "application", "target": "C:/Program Files/Microsoft VS Code/Code.exe" },
+        { "name": "Chrome",      "type": "application", "target": "C:/Program Files/Google/Chrome/Application/chrome.exe" },
+        { "name": "GitHub",      "type": "website",     "target": "https://github.com" },
+        { "name": "YouTube",     "type": "website",     "target": "https://youtube.com" },
+        { "name": "Downloads",   "type": "folder",      "target": "C:/Users/YourName/Downloads" },
+        { "name": "Documents",   "type": "folder",      "target": "C:/Users/YourName/Documents" },
+        { "name": "Notepad",     "type": "application", "target": "C:/Windows/System32/notepad.exe" },
+        { "name": "Calculator",  "type": "application", "target": "C:/Windows/System32/calc.exe" }
+      ]
+    },
+    {
+      "name": "Work",
+      "shortcuts": [
+        { "name": "Teams",       "type": "application", "target": "C:/Users/YourName/AppData/Local/Microsoft/Teams/current/Teams.exe" },
+        { "name": "Outlook",     "type": "application", "target": "C:/Program Files/Microsoft Office/root/Office16/OUTLOOK.EXE" },
+        { "name": "Word",        "type": "application", "target": "C:/Program Files/Microsoft Office/root/Office16/WINWORD.EXE" },
+        { "name": "Excel",       "type": "application", "target": "C:/Program Files/Microsoft Office/root/Office16/EXCEL.EXE" },
+        { "name": "Task Mgr",    "type": "command",     "target": "taskmgr" },
+        { "name": "IP Info",     "type": "command",     "target": "ipconfig /all > C:/Temp/ip.txt && notepad C:/Temp/ip.txt" },
+        { "name": "",            "type": "application", "target": "" },
+        { "name": "",            "type": "application", "target": "" }
+      ]
+    }
+  ]
+}
