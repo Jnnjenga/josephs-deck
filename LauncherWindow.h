@@ -53,7 +53,6 @@ private:
     static const int TITLE_H   = 40;   // title bar
     static const int DOTS_H    = 30;   // dots navigation bar
     static const int COLS      = 4;
-    static const int ROWS      = 2;
     static const int BTN_W     = 130;
     static const int BTN_H     = 100;
     static const int PADDING   = 12;
@@ -75,17 +74,20 @@ private:
     static const COLORREF CLR_TEXT    = 0x00F0F0F0;
     static const COLORREF CLR_SUBTEXT = 0x00909090;
 
+    int Rows()      const { return m_manager.GetRows(); }
     int WinWidth()  const { return COLS * BTN_W + (COLS + 1) * PADDING; }
-    int WinHeight() const { return TITLE_H + ROWS * BTN_H + (ROWS + 1) * PADDING + DOTS_H; }
+    int WinHeight() const { return TITLE_H + Rows() * BTN_H + (Rows() + 1) * PADDING + DOTS_H; }
     int ButtonsTop()const { return TITLE_H; }
-    int DotsBarY()  const { return TITLE_H + ROWS * BTN_H + (ROWS + 1) * PADDING; }
+    int DotsBarY()  const { return TITLE_H + Rows() * BTN_H + (Rows() + 1) * PADDING; }
 
     RECT SettingsBtnRect() const;
     std::vector<RECT> DotRects() const;
+    std::vector<RECT> GridBtnRects() const;
 
     RECT ButtonRect(int index) const;
     int  HitTestButton(int x, int y) const;
     int  HitTestDot(int x, int y) const;
+    int  HitTestGridBtn(int x, int y) const;
     bool HitTestSettings(int x, int y) const;
 
     void OnPaint(HDC hdc);

@@ -117,10 +117,17 @@ void ShortcutManager::FreeProfileIcons(Profile& p) {
 }
 
 void ShortcutManager::PadProfile(Profile& p) {
-    while (p.shortcuts.size() < 8) {
+    size_t target = (size_t)(m_rows * 4);
+    while (p.shortcuts.size() < target) {
         Shortcut e; e.type = ShortcutType::Empty;
         p.shortcuts.push_back(e);
     }
+}
+
+void ShortcutManager::SetRows(int rows) {
+    if (rows < 2 || rows > 4) return;
+    m_rows = rows;
+    for (auto& p : m_profiles) PadProfile(p);
 }
 
 std::wstring ShortcutManager::ToWide(const std::string& str) {
@@ -247,6 +254,7 @@ bool ShortcutManager::Load(const std::wstring& path) {
     if (json.find("\"profiles\"") != std::string::npos) {
         // ── New multi-profile format ──
         m_current = ExtractInt(json, "currentProfile", 0);
+        m_rows    = std::max(2, std::min(4, ExtractInt(json, "rows", 2)));
         std::string profArr = ExtractArrayText(json, "profiles");
         for (const auto& pObj : ExtractObjects(profArr))
             m_profiles.push_back(ParseProfile(pObj));
@@ -324,7 +332,7 @@ bool ShortcutManager::Save() const {
         }
     };
 
-    file << "{\n  \"currentProfile\": " << m_current << ",\n  \"profiles\": [\n";
+    file << "{\n  \"currentProfile\": " << m_current << ",\n  \"rows\": " << m_rows << ",\n  \"profiles\": [\n";
     for (int pi = 0; pi < (int)m_profiles.size(); pi++) {
         if (pi) file << ",\n";
         const auto& p = m_profiles[pi];

@@ -134,6 +134,7 @@ void LauncherWindow::Show() {
 void LauncherWindow::Hide() {
     m_hoverIndex = -1; m_pressIndex = -1;
     m_settingsHover = false; m_dotHover = -1;
+    CommitRename();
     if (m_hRenEdit) ShowWindow(m_hRenEdit, SW_HIDE);
     m_view = View::Main;
     m_editOpen = false;
@@ -169,7 +170,7 @@ RECT LauncherWindow::ButtonRect(int index) const {
 }
 
 int LauncherWindow::HitTestButton(int x, int y) const {
-    for (int i = 0; i < ROWS * COLS; i++) {
+    for (int i = 0; i < Rows() * COLS; i++) {
         RECT r = ButtonRect(i);
         if (x >= r.left && x < r.right && y >= r.top && y < r.bottom) return i;
     }
@@ -180,6 +181,29 @@ int LauncherWindow::HitTestDot(int x, int y) const {
     auto dots = DotRects();
     for (int i = 0; i < (int)dots.size(); i++) {
         RECT r = dots[i]; r.left -= 4; r.top -= 4; r.right += 4; r.bottom += 4; // larger hit area
+        if (x >= r.left && x < r.right && y >= r.top && y < r.bottom) return i;
+    }
+    return -1;
+}
+
+std::vector<RECT> LauncherWindow::GridBtnRects() const {
+    const int bw = 72, bh = 22, gap = 12;
+    int total = 3 * bw + 2 * gap;
+    int sx = (WinWidth() - total) / 2;
+    int cy = DotsBarY() + DOTS_H / 2;
+    std::vector<RECT> out;
+    for (int i = 0; i < 3; i++) {
+        int x = sx + i * (bw + gap);
+        out.push_back({ x, cy - bh / 2, x + bw, cy + bh / 2 });
+    }
+    return out;
+}
+
+int LauncherWindow::HitTestGridBtn(int x, int y) const {
+    if (y < DotsBarY() || y >= DotsBarY() + DOTS_H) return -1;
+    auto rects = GridBtnRects();
+    for (int i = 0; i < (int)rects.size(); i++) {
+        RECT r = rects[i]; r.left -= 4; r.right += 4;
         if (x >= r.left && x < r.right && y >= r.top && y < r.bottom) return i;
     }
     return -1;
@@ -197,6 +221,7 @@ static LRESULT CALLBACK RenEditProc(HWND hw, UINT m, WPARAM w, LPARAM l) {
     if (m == WM_KEYDOWN) {
         if (w == VK_RETURN) { SendMessageW(GetParent(hw), WM_APP+1, 0, 0); return 0; }
         if (w == VK_ESCAPE) { SendMessageW(GetParent(hw), WM_APP+2, 0, 0); return 0; }
+        if (w == 'A' && (GetKeyState(VK_CONTROL) & 0x8000)) { SendMessageW(hw, EM_SETSEL, 0, -1); return 0; }
     }
     return CallWindowProcW(s_origRenProc, hw, m, w, l);
 }
@@ -348,14 +373,33 @@ void LauncherWindow::DrawGhostButton(HDC hdc, const Shortcut& sc) {
 }
 
 void LauncherWindow::DrawDots(HDC hdc) {
+    if (m_view == View::Settings) {
+        static const wchar_t* labels[]  = { L"2×4", L"3×4", L"4×4" };
+        static const int      rowVals[] = { 2, 3, 4 };
+        int curRows = m_manager.GetRows();
+        auto rects  = GridBtnRects();
+        for (int i = 0; i < 3; i++) {
+            bool active = (rowVals[i] == curRows);
+            bool hov    = (m_dotHover == i);
+            COLORREF bg = active ? CLR_ACCENT : (hov ? CLR_HOVER : CLR_EMPTY);
+            COLORREF fg = active ? CLR_BG     : (hov ? CLR_TEXT  : CLR_SUBTEXT);
+            RRect(hdc, rects[i], 5, bg, active ? CLR_ACCENT : CLR_BORDER);
+            HFONT f = MakeFont(11); HFONT of = (HFONT)SelectObject(hdc, f);
+            SetBkMode(hdc, TRANSPARENT);
+            SetTextColor(hdc, fg);
+            DrawTextW(hdc, labels[i], -1, &rects[i], DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+            SelectObject(hdc, of); DeleteObject(f);
+        }
+        return;
+    }
     auto dots = DotRects();
     int cur = m_manager.GetCurrentIndex();
     for (int i = 0; i < (int)dots.size(); i++) {
         RECT r = dots[i];
         bool active = (i == cur);
         bool hover  = (i == m_dotHover && !active);
-        COLORREF fill   = active ? CLR_TEXT     : (hover ? CLR_BORDER : CLR_EMPTY);
-        COLORREF border = active ? CLR_TEXT     : CLR_BORDER;
+        COLORREF fill   = active ? CLR_TEXT  : (hover ? CLR_BORDER : CLR_EMPTY);
+        COLORREF border = active ? CLR_TEXT  : CLR_BORDER;
         HBRUSH hB = MkBrush(fill);
         HPEN   hP = CreatePen(PS_SOLID, 1, border);
         HBRUSH ob = (HBRUSH)SelectObject(hdc, hB);
@@ -401,7 +445,7 @@ void LauncherWindow::OnPaint(HDC hdc) {
         DrawSettings(hdc);
     } else {
         const auto& shortcuts = m_manager.GetShortcuts();
-        for (int i = 0; i < ROWS * COLS; i++) {
+        for (int i = 0; i < Rows() * COLS; i++) {
             if (i < (int)shortcuts.size()) DrawButton(hdc, i, shortcuts[i]);
             else { Shortcut e; e.type = ShortcutType::Empty; DrawButton(hdc, i, e); }
         }
@@ -438,7 +482,7 @@ void LauncherWindow::OnMouseMove(int x, int y) {
     int  prevHov  = m_hoverIndex;
 
     m_settingsHover = HitTestSettings(x, y);
-    m_dotHover      = HitTestDot(x, y);
+    m_dotHover      = (m_view == View::Settings) ? HitTestGridBtn(x, y) : HitTestDot(x, y);
     m_hoverIndex    = HitTestButton(x, y);
 
     if (prevSett != m_settingsHover || prevDot != m_dotHover || prevHov != m_hoverIndex)
@@ -485,11 +529,13 @@ void LauncherWindow::OnLButtonUp(int x, int y) {
         return;
     }
 
-    // Profile dot
-    int dot = HitTestDot(x, y);
-    if (dot >= 0) { OnDotClick(dot); return; }
+    // Profile dot (main view only — settings mode uses this area for grid size)
+    if (m_view != View::Settings) {
+        int dot = HitTestDot(x, y);
+        if (dot >= 0) { OnDotClick(dot); return; }
+    }
 
-    // Settings view tile click
+    // Settings view tile + grid size clicks
     if (m_view == View::Settings) { OnSettViewLClick(x, y); return; }
 
     // Button click
@@ -607,7 +653,7 @@ void LauncherWindow::DrawSettings(HDC hdc) {
     int count = m_manager.GetProfileCount();
     int cur   = m_manager.GetCurrentIndex();
 
-    for (int i = 0; i <= std::min(count, ROWS * COLS - 1); i++) {
+    for (int i = 0; i <= std::min(count, Rows() * COLS - 1); i++) {
         RECT r = ButtonRect(i);
 
         if (i == count) {
@@ -643,8 +689,8 @@ void LauncherWindow::DrawSettings(HDC hdc) {
                       DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
             SelectObject(hdc, otf); DeleteObject(tf);
 
-            // "Active" label at bottom
-            if (act) {
+            // "Active" label at bottom — hidden when selected (hint already says "Active · click to rename")
+            if (act && !isSel) {
                 SetTextColor(hdc, CLR_ACCENT);
                 RECT ar2 = { r.left + 4, r.bottom - 26, r.right - 4, r.bottom - 6 };
                 HFONT af = MakeFont(11); HFONT oaf = (HFONT)SelectObject(hdc, af);
@@ -666,11 +712,25 @@ void LauncherWindow::DrawSettings(HDC hdc) {
 }
 
 void LauncherWindow::OnSettViewLClick(int x, int y) {
+    // Grid size buttons in the dots bar
+    if (y >= DotsBarY()) {
+        static const int rowVals[] = { 2, 3, 4 };
+        int btn = HitTestGridBtn(x, y);
+        if (btn >= 0 && rowVals[btn] != m_manager.GetRows()) {
+            CommitRename();
+            m_manager.SetRows(rowVals[btn]);
+            m_manager.Save();
+            CenterWindow();
+            InvalidateRect(m_hwnd, nullptr, FALSE);
+        }
+        return;
+    }
+
     int idx   = HitTestButton(x, y);
     int count = m_manager.GetProfileCount();
     if (idx < 0) { CommitRename(); return; }
 
-    if (idx == count && count < ROWS * COLS) {
+    if (idx == count && count < Rows() * COLS) {
         // Add new profile
         CommitRename();
         std::wstring base = L"New Profile", name = base;

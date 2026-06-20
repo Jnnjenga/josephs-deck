@@ -12,6 +12,10 @@ public:
     void CreateDefaults(const std::wstring& path);
     bool Save() const;
 
+    // ── Grid size ───────────────────────────────────────────────────────────
+    int  GetRows() const { return m_rows; }
+    void SetRows(int rows);   // 2, 3, or 4
+
     // ── Profile management ──────────────────────────────────────────────────
     int  GetProfileCount()         const { return (int)m_profiles.size(); }
     int  GetCurrentIndex()         const { return m_current; }
@@ -34,11 +38,12 @@ public:
 private:
     struct Profile {
         std::wstring          name;
-        std::vector<Shortcut> shortcuts;   // always 8 slots
+        std::vector<Shortcut> shortcuts;
     };
 
     std::vector<Profile> m_profiles;
     int                  m_current = 0;
+    int                  m_rows    = 2;
     std::wstring         m_jsonPath;
 
     void         PadProfile(Profile& p);
